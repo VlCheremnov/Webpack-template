@@ -1,0 +1,10 @@
+<% var myhtml = require('./../includes/header.html') %>
+<% var data = {
+  title: "Заголовок | Проект",
+  author: "Harrix"
+}; %>
+<%= _.template(myhtml)(data) %>
+
+<p>text</p>
+
+<%= _.template(require('./../includes/footer.html'))(data) %>
