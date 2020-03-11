@@ -1,8 +1,11 @@
 const path = require('path');
-const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const webpack = require('webpack');
+require('dotenv').config()
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
+const devMode = process.env.NODE_ENV !== 'production';
 
-// Auto page generator
+// auto page generator
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const fs = require('fs');
 
@@ -23,20 +26,22 @@ function generateHtmlPlugins(templateDir) {
 const htmlPlugins = generateHtmlPlugins('./src/html/views');
 
 module.exports = {
-  // Connected files
-  entry: [
-    './src/js/index.js'
+  entry: [  // webpack entry point.
+    './src/index.js',
+    './src/styles/index.sass',
+    // './src/styles/loader.sass'
   ],
   output: {
-    filename: './js/bundle.js'
+    path: path.resolve(__dirname, 'dist'),  // folder to store generated bundle
+    filename: './bundle.script.js'  // name of generated bundle after build
   },
-  devtool: "source-map",
 
-  // Modules
-  module: {
+  devtool: "source-map",  // source Maps
+
+  module: {  // where we defined file patterns and their loaders
     rules: [
 
-      // // Babel
+      // // babel
       // {
       //   test: /\.js$/,
       //   exclude: /node_modules/,
@@ -48,14 +53,34 @@ module.exports = {
       //   }
       // },
 
-      // Styles
+      // styles sass/scss
       {
-        test: /\.(sass|scss)$/,
-        include: path.resolve(__dirname, 'src/styles'),
-        use: [MiniCssExtractPlugin.loader, 'sass-loader'],
+        test: /\.(sa|sc|c)ss$/,
+        use: [  
+          {
+            loader: 'file-loader',
+            options: {
+              name: './styles/[name].css',
+              context: './',
+              publicPath: './dist/styles'
+            }
+          },
+          {
+            loader: 'extract-loader'
+          },
+          {
+            loader: 'css-loader',
+          },
+          {
+            loader: 'sass-loader',
+            options: {
+              sourceMap: true
+            }
+          }
+        ]
       },
 
-      // Html
+      // html template
       {
         test: /\.html$/,
         include: path.resolve(__dirname, 'src/html/includes'),
@@ -64,14 +89,29 @@ module.exports = {
     ]
   },
 
-  // Plugins
-  plugins: [
-    new CopyWebpackPlugin([
-      {
-        from: './src/img',
-        to: './img'
+  plugins: [  // array of plugins to apply to build chunk
+    new webpack.DefinePlugin({  // plugin to define global constants
+
+      // Change the path to the includes folder in the .env file
+      INCLUDES_PATH: JSON.stringify(process.env.INCLUDES_PATH)
+    }),
+    
+    new CleanWebpackPlugin(),  // Clear the dist folder
+
+    new CopyWebpackPlugin([  
+      {  // copy static files
+        from: './src/static',
+        to: './'
       }
-    ]),
-    new MiniCssExtractPlugin()
-  ].concat(htmlPlugins)
+    ])
+  ].concat(htmlPlugins), // auto page generator
+
+  devServer: {  // configuration for webpack-dev-server
+    liveReload: true,
+    hot: false,
+    watchContentBase: true,
+    host: "localhost", // host to run dev-server
+    port: 80, // port to run dev-server
+    open: false  // open page at server startup
+  } 
 };
