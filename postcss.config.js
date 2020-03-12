@@ -2,7 +2,10 @@ module.exports = {
 	plugins: [
 		require('postcss-preset-env'),
 		require('cssnano')({
-      preset: 'default',
+      preset: [
+      	'default',
+      	{minifySelectors: true}
+      ]
     })
 	]
 }
