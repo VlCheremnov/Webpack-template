@@ -4,17 +4,22 @@ require('dotenv').config()
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const devMode = process.env.NODE_ENV !== 'production';
-
-// auto page generator
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const fs = require('fs');
 
+// remove readme file
+let removeReadme = item => item.replace(/\..+$/, '').toLowerCase() != 'readme';
+
+// auto page generator
 function generateHtmlPlugins(templateDir) {
   const templateFiles = fs.readdirSync(path.resolve(__dirname, templateDir));
-  return templateFiles.map(item => {
+  const filteredTemplateFiles = templateFiles.filter(removeReadme);
+
+  return filteredTemplateFiles.map(item => {
     const parts = item.split('.');
     const name = parts[0];
     const extension = parts[1];
+
     return new HtmlWebpackPlugin({
       filename: `${name}.html`,
       template: path.resolve(__dirname, `${templateDir}/${name}.${extension}`),
