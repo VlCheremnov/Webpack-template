@@ -1,36 +1,49 @@
 const path = require('path');
 const webpack = require('webpack');
-require('dotenv').config()
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
-const devMode = process.env.NODE_ENV !== 'production';
+const TerserPlugin = require('terser-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const HtmlBeautifyPlugin = require('html-beautify-webpack-plugin');
 const fs = require('fs');
 
-// remove readme file
-let removeReadme = item => item.replace(/\..+$/, '').toLowerCase() != 'readme';
+// Html files only
+let htmlOnly = item => /(\.njk)$/.test(item);
 
 // auto page generator
 function generateHtmlPlugins(templateDir) {
   const templateFiles = fs.readdirSync(path.resolve(__dirname, templateDir));
-  const filteredTemplateFiles = templateFiles.filter(removeReadme);
+  const filteredTemplateFiles = templateFiles.filter(htmlOnly);
 
   return filteredTemplateFiles.map(item => {
-    const parts = item.split('.');
-    const name = parts[0];
-    const extension = parts[1];
+    const extension = 'njk';
+    const name = item.replace(/(\.njk)$/, '');
 
     return new HtmlWebpackPlugin({
       filename: `${name}.html`,
       template: path.resolve(__dirname, `${templateDir}/${name}.${extension}`),
       inject: false,
+      showErrors: null
     })
-  })
+  }).concat([new HtmlBeautifyPlugin(
+    {
+      config: {
+        html: {
+          end_with_newline: true,
+          indent_size: 2,
+          indent_with_tabs: true,
+          indent_inner_html: true,
+          preserve_newlines: false
+        }
+      }
+    })
+  ]);
 };
 
 const htmlPlugins = generateHtmlPlugins('./src/html/views');
 
 module.exports = {
+
   entry: [  // webpack entry point.
     './src/index.js',
     './src/styles/index.sass',
@@ -41,21 +54,27 @@ module.exports = {
     filename: './bundle.script.js'  // name of generated bundle after build
   },
 
-  devtool: "source-map",  // source Maps
+  mode: "production",
 
   module: {  // where we defined file patterns and their loaders
+    
     rules: [
 
       // babel
       {
         test: /\.js$/,
         exclude: /node_modules/,
-        use: {
-          loader: 'babel-loader',
-          options: {
-            presets: ['@babel/preset-env']
+        use: [
+          {
+            loader: 'babel-loader',
+            options: {
+              presets: ['@babel/preset-env']
+            }
+          },
+          {
+            loader: 'eslint-loader'
           }
-        }
+        ]
       },
 
       // styles sass/scss
@@ -66,8 +85,7 @@ module.exports = {
             loader: 'file-loader',
             options: {
               name: './styles/[name].css',
-              context: './',
-              publicPath: './dist/styles'
+              context: './'
             }
           },
           {
@@ -82,34 +100,46 @@ module.exports = {
           {
             loader: 'sass-loader',
             options: {
-              sourceMap: true
+              sourceMap: false
             }
           }
         ]
       },
 
-      // html template
+      // nunjucks templates
       {
-        test: /\.html$/,
-        include: path.resolve(__dirname, 'src/html/includes'),
-        use: ['html-loader']
+        test: /\.njk|nunjucks/,
+        use: [
+          {
+            loader: 'html-loader',
+            options: {
+              minimize: {
+                minimize: false,
+                removeComments: false,
+                collapseWhitespace: false
+              }
+            }
+          },
+          { // use html-loader or html-withimg-loader to handle inline resource
+            loader: 'nunjucks-webpack-loader' // add nunjucks-webpack-loader
+          },
+        ]
       },
     ]
   },
 
   plugins: [  // array of plugins to apply to build chunk
-    new webpack.DefinePlugin({  // plugin to define global constants
-
-      // Change the path to the includes folder in the .env file
-      INCLUDES_PATH: JSON.stringify(process.env.INCLUDES_PATH)
-    }),
     
-    new CleanWebpackPlugin(),  // Clear the dist folder
+    new CleanWebpackPlugin({
+      dry: true,
+      cleanOnceBeforeBuildPatterns : []
+    }),  // Clear the dist folder
 
     new CopyWebpackPlugin([  
       {  // copy static files
         from: './src/static',
-        to: './'
+        to: './',
+        ignore: ['*.md']
       }
     ])
   ].concat(htmlPlugins), // auto page generator
@@ -121,5 +151,36 @@ module.exports = {
     host: "localhost", // host to run dev-server
     port: 80, // port to run dev-server
     open: false  // open page at server startup
-  } 
+  },
+
+  optimization: {
+    splitChunks: {
+      chunks: 'async',
+      minChunks: 1,
+      automaticNameDelimiter: '~',
+      cacheGroups: {
+        defaultVendors: {
+          test: /[\\/]node_modules[\\/]/,
+          priority: -10
+        },
+        default: {
+          minChunks: 2,
+          priority: -20,
+          reuseExistingChunk: true
+        }
+      }
+    },
+    minimizer: [
+      new TerserPlugin({
+        parallel: true,
+        extractComments: true,
+        terserOptions: {
+          ecma: 5,
+          ie8: false,
+          compress: true,
+          warnings: true,
+        },
+      }),
+    ]
+  }
 };
